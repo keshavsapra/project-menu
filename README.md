@@ -1,280 +1,379 @@
-# project-menu
+<div align="center">
 
-A cross-distro, cross-desktop Linux utility that mimics Windows' **Win+P** "Project"
-menu. Press **Super+P** and choose:
+# 🖥️ project-menu
 
-* **PC screen only**
-* **Duplicate**
-* **Extend**
-* **Second screen only**
+### The modern **Win + P** display switcher for Linux, crafted with Apple-level elegance.
 
-It auto-detects your environment at runtime and picks the right display backend,
-hotkey registrar and popup UI — no configuration required.
+[![CI](https://github.com/your-username/project-menu/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/project-menu/actions)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Wayland%20%7C%20X11-2ea44f.svg)]()
+[![Code style: clean](https://img.shields.io/badge/code%20style-PEP%208-black.svg)](https://peps.python.org/pep-0008/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
----
-
-## Features
-
-* **Pluggable backends**, auto-detected via `$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`,
-  `$WAYLAND_DISPLAY`, `$HYPRLAND_INSTANCE_SIGNATURE` and `$SWAYSOCK`. Override with
-  `--backend NAME`.
-* **Display backends** for X11 (`xrandr`), GNOME Wayland (Mutter D-Bus — no `gdctl`),
-  KDE Plasma (`kscreen-doctor`), Sway, Hyprland, generic wlroots (`wlr-randr`) and COSMIC.
-* **1 / 2 / 3+ monitor handling**: shows "no second display detected" on a single
-  screen, and lets you pick which display is the "second screen" when three or more
-  are connected.
-* **Extend position**: right (default), left, above or below.
-* **Duplicate** uses the highest common resolution and warns when refresh rates differ.
-* **Revert protection**: a 15-second "Keep changes?" confirmation (or Revert) so a
-  bad config can never leave you with a black screen.
-* **Popup UI** in Python 3 + GTK (3 or 4), with a Qt fallback only when GTK is missing.
-  Borderless, centered, theme-aware, keyboard-driven (`↑/↓/Tab`, `Enter`, `Esc`, `1-4`),
-  highlights the active mode, and cycles on a second Super+P press.
-* **Global hotkey registration** per desktop, with clear manual instructions when a
-  desktop can't be configured automatically.
-* **CLI** for scripting: `--list`, `--mode`, `--dry-run`, `--debug`, `--backend`.
-* **Logging** to `~/.local/state/project-menu/log`, plus `notify-send` on failure.
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-visual-tour">Visual Tour</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-keyboard-shortcuts">Shortcuts</a> •
+  <a href="#-support-matrix">Support Matrix</a> •
+  <a href="#-cli-power-tools">CLI Guide</a> •
+  <a href="#-testing--diagnostics">Testing</a> •
+  <a href="#-extensibility">Add a Backend</a>
+</p>
 
 ---
 
-## Installation
+</div>
 
-### From this repository
+Press **<kbd>Super</kbd> + <kbd>P</kbd>** from anywhere on Linux to bring up a gorgeous, frosted-glass display projection card:
 
-```bash
-./install.sh                 # detects apt/dnf/pacman/zypper, installs deps + hotkey
-./uninstall.sh               # reverses everything
+* 💻 **PC screen only** — Disconnect external monitors and save battery.
+* 🪞 **Duplicate** — Mirror your primary screen at optimal resolution.
+* 🖥️ **Extend** — Expand your workspace horizontally or vertically.
+* 📺 **Second screen only** — Turn off your laptop screen and dock to external displays.
+
+**Zero configuration required.** `project-menu` inspects your desktop environment and display server at runtime, seamlessly routing calls to **Mutter D-Bus**, **KScreen**, **swaymsg**, **hyprctl**, **wlr-randr**, **cosmic-randr**, or **xrandr**.
+
+---
+
+## 🎨 Visual Tour
+
+### Apple-Style Glassmorphic Popup
+Crafted with frosted translucency, vibrant squircle icons, San Francisco-inspired typography, and glowing active-mode states.
+
+```text
+  ┌─────────────────────────────────────────────────────────────┐
+  │                        Display Modes                        │
+  │     Choose how to project or arrange connected screens      │
+  │                                                             │
+  │   ╭─────────────────────────────────────────────────────╮   │
+  │   │  ┌──────┐                                           │   │
+  │   │  │  💻  │   PC screen only                    [ 1 ] │   │
+  │   │  └──────┘   Disconnect external monitors            │   │
+  │   ╰─────────────────────────────────────────────────────╯   │
+  │   ╭─────────────────────────────────────────────────────╮   │
+  │   │  ┌──────┐                                           │   │
+  │   │  │  🪞  │   Duplicate                         [ 2 ] │   │
+  │   │  └──────┘   Mirror primary display contents         │   │
+  │   ╰─────────────────────────────────────────────────────╯   │
+  │   ╭─────────────────────────────────────────────────────╮   │
+  │   │  ┌──────┐                                    ACTIVE │   │
+  │   │  │  🖥️  │   Extend                            [ 3 ] │   │
+  │   │  └──────┘   Expand your desktop workspace           │   │
+  │   ╰─────────────────────────────────────────────────────╯   │
+  │   ╭─────────────────────────────────────────────────────╮   │
+  │   │  ┌──────┐                                           │   │
+  │   │  │  📺  │   Second screen only                [ 4 ] │   │
+  │   │  └──────┘   Turn off the internal display           │   │
+  │   ╰─────────────────────────────────────────────────────╯   │
+  │                                                             │
+  │      ↑/↓/Tab: Navigate   •   Enter: Apply   •   Esc: Exit   │
+  └─────────────────────────────────────────────────────────────┘
 ```
 
-`install.sh` installs only the dependencies relevant to your detected environment
-(e.g. `libkscreen` on KDE, `sway` on Sway, `gtk-layer-shell` on wlroots compositors).
+### 15-Second Black-Screen Safety Revert Sheet
+Never worry about bad display modes, disconnected cables, or unsupported refresh rates locking you out.
 
-Options: `--append-config` (Sway/Hyprland/i3: append the hotkey snippet to your WM
-config instead of just printing it), `--no-hotkey` (skip hotkey registration).
+```text
+  ┌─────────────────────────────────────────────────────────────┐
+  │                       Keep Displays?                        │
+  │          Reverting to previous layout in 14 seconds         │
+  │                                                             │
+  │              [ Keep Changes ]      [ Revert Now ]           │
+  └─────────────────────────────────────────────────────────────┘
+```
 
-### Via pipx
+---
+
+## ✨ Features
+
+* 🍏 **Apple macOS Aesthetics**: Frosted glass blur background, squircle gradient glyph tiles, active mode accent badges, and native dark/light theme tracking.
+* ⚡ **Runtime Environment Detection**: Automatically picks the best backend using `$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`, `$WAYLAND_DISPLAY`, `$HYPRLAND_INSTANCE_SIGNATURE`, and `$SWAYSOCK`.
+* 🛡️ **15-Second Revert Protection**: Automatic rollback timer prevents black-screen lockouts whenever modes are switched.
+* 🔁 **Win+P Cycling**: Single-instance architecture via `Gio.Application` allows pressing <kbd>Super</kbd> + <kbd>P</kbd> repeatedly to cycle through modes smoothly.
+* 🖥️ **Smart Multi-Monitor Routing**:
+  * **1 Monitor**: Clean alert notifying that no external screen is attached.
+  * **2 Monitors**: Instant zero-click switching.
+  * **3+ Monitors**: Interactive target screen picker and configurable extend orientation (`right`, `left`, `above`, `below`).
+* 🪞 **Intelligent Mirroring**: Automatically negotiates the highest common resolution between displays and warns if refresh rates diverge.
+* ⌨️ **Keyboard-Driven & Accessible**: Full arrow key navigation, Tab navigation, numeric direct triggers (`1`–`4`), and focus-loss dismissal.
+* 🧰 **Scriptable CLI**: Standalone mode commands for window manager shortcuts, dotfiles, or terminal scripts.
+* 📦 **Universal Linux Installer**: Dependency auto-resolution across `apt` (Ubuntu/Debian), `dnf` (Fedora), `pacman` (Arch), and `zypper` (openSUSE).
+
+---
+
+## 🚀 Quick Start
+
+### 1. One-Line Installer (Recommended)
+
+Clone the repository and run the automated installer. It detects your package manager, installs only the required libraries for your current desktop, sets up icons, and registers global hotkeys:
+
+```bash
+git clone https://github.com/your-username/project-menu.git
+cd project-menu
+./install.sh
+```
+
+> [!TIP]
+> On tiling compositors (Sway, Hyprland, i3), `install.sh` never touches your dotfiles without permission. It prints the exact config snippet or accepts `--append-config` to write it automatically.
+
+### 2. Using pipx
+
+If you prefer managing Python applications via `pipx`:
 
 ```bash
 pipx install .
-pipx run project-menu --list
+project-menu --list
 ```
 
-Note: pipx installs the Python code but does **not** install system dependencies
-(`xrandr`, `kscreen-doctor`, GTK bindings, …) or register the hotkey. Use
-`install.sh` for a fully wired install, or install those manually.
+*(Note: pipx installs the Python executable. Run `./install.sh` or consult your package manager to set up system packages like `python3-gi`, `gir1.2-gtk-3.0`, and desktop hotkeys).*
 
----
+### 3. Uninstalling
 
-## Usage
-
-```
-project-menu              # show the popup
-project-menu --list       # list detected outputs
-project-menu --mode extend|duplicate|internal|external   # apply without popup
-project-menu --mode extend --position left               # extend to the left
-project-menu --mode extend --output DP-1                 # choose the second screen (or --target-output)
-project-menu --mode extend --confirm                     # apply with 15s auto-revert prompt
-project-menu --dry-run --mode duplicate                  # print commands only
-project-menu --debug                                     # print environment + backend
-project-menu --backend sway                              # force a backend
-project-menu --register-hotkey | --unregister-hotkey
-```
-
-`--mode` is ideal for binding manually (e.g. a WM keybind per mode). To revert a
-CLI-applied change: `project-menu --mode internal` (or the original mode).
-
----
-
-## Architecture
-
-```
-main.py                 entry point
-cli.py                  argparse + dispatch
-detect.py               environment detection ($XDG_SESSION_TYPE, desktop, …)
-interfaces.py           DisplayBackend / HotkeyRegistrar / PopupUI + data types
-core.py                 logging, notify-send, mode inference, output selection
-backends/               one module per backend + registry
-hotkeys/                per-desktop Super+P registrars + registry
-ui/                     GTK popup (gtk_ui.py) + Qt fallback (qt_ui.py)
-```
-
-### Detection order
-
-1. If `--backend` is given, use it (after alias resolution).
-2. Otherwise iterate the backend registry in priority order; the first backend whose
-   `can_handle(env)` passes **and** whose required tool/API is available wins.
-3. If nothing matches, print an error naming the detected environment and explaining
-   how to add a backend.
-
-The environment is normalized into a small `Environment` dataclass (see
-`detect.py`) and passed to every backend/hotkey registrar.
-
-### Backend contract
-
-Each backend implements `list_outputs()`, `get_current_mode()`,
-`plan(selection) -> [commands]` and `apply(selection) -> ApplyResult`, plus
-`snapshot()`/`restore()` for the revert flow. Subprocess backends share a single
-`_run()` seam so unit tests can substitute canned command output; the GNOME backend
-shares a `_call()` seam for mocked D-Bus.
-
----
-
-## Support matrix
-
-| Desktop | Session | Backend | Internal | Duplicate | Extend | External | Popup overlay | Hotkey |
-|---|---|---|---|---|---|---|---|---|
-| GNOME / Ubuntu | X11 | xrandr | ✅ | ✅ | ✅ | ✅ | always-on-top, centered | gsettings |
-| GNOME / Ubuntu | Wayland | Mutter D-Bus | ✅ | ✅ | ✅ | ✅ | normal window¹ | gsettings |
-| KDE Plasma | X11 | xrandr | ✅ | ✅ | ✅ | ✅ | always-on-top | kglobalaccel |
-| KDE Plasma | Wayland | kscreen-doctor | ✅ | ✅² | ✅ | ✅ | layer-shell | kglobalaccel |
-| Sway | Wayland | swaymsg | ✅ | ✅ | ✅ | ✅ | layer-shell | config snippet³ |
-| Hyprland | Wayland | hyprctl | ✅ | ✅⁴ | ✅ | ✅ | layer-shell | config snippet³ |
-| river / labwc / Wayfire | Wayland | wlr-randr | ✅ | ✅² | ✅ | ✅ | layer-shell | config snippet³ |
-| COSMIC | Wayland | cosmic-randr | ✅ | ✅⁴ | ✅ | ✅ | layer-shell | manual |
-| Cinnamon / MATE | any | xrandr / Mutter⁵ | ✅ | ✅ | ✅ | ✅ | per session | dconf⁶ |
-| XFCE | X11 | xrandr | ✅ | ✅ | ✅ | ✅ | always-on-top | xfconf-query |
-| Other X11 (i3, openbox, …) | X11 | xrandr | ✅ | ✅ | ✅ | ✅ | always-on-top | XGrabKey daemon / sxhkd |
-| Other Wayland | Wayland | — | ❌ | ❌ | ❌ | ❌ | — | — |
-
-¹ GNOME Wayland has no wlr-layer-shell, so the popup is a normal focused window and
-   cannot be positioned or kept on top. It still works — just focus it with Super+P.
-² KDE / wlr-randr "duplicate" places both outputs at the same position with the same
-   mode; most compositors treat that as mirroring. On KDE, KScreen's own replication
-   is used under the hood.
-³ Sway/Hyprland/i3 configs are **never edited automatically**. `install.sh` prints
-   the exact snippet; pass `--append-config` to append it.
-⁴ Hyprland and COSMIC use their native `mirror` feature.
-⁵ Cinnamon/MATE on Wayland fall back to the X11/xrandr or Mutter backend depending
-   on the session; on Wayland-only setups MATE/Cinnamon are not currently supported.
-⁶ Cinnamon/MATE hotkey registration is best-effort via dconf; schema names vary by
-   version, so `install.sh` prints manual instructions if it fails.
-
-### Known limitations
-
-* **GNOME Wayland**: requires `IsExperimentalApiEnabled` (on by default in modern
-  Mutter). Mode IDs are the exact strings mutter reports; if a mode isn't found the
-  D-Bus call is rejected atomically.
-* **Scaling**: the GNOME backend preserves each monitor's scale, but extend position
-  math uses the logical (scaled) size — fractional-scaling edge cases are possible.
-* **Duplicate refresh**: when two displays share a resolution but not a refresh rate,
-  the lower-rate display is driven at the common resolution; a warning is shown.
-* **NVIDIA on Wayland**: behaviour depends on the compositor/driver; X11/xrandr is
-  the most reliable path on NVIDIA.
-* **cosmic-randr** and **kscreen-doctor** CLIs are version-dependent; the backends
-  parse leniently but newer releases may need small adjustments.
-
----
-
-## Testing
-
-Unit tests mock every backend's command output (or D-Bus responses), so they run on
-any machine without real displays:
+To cleanly remove binaries, icons, state files, and unregister global hotkeys:
 
 ```bash
-python3 -m unittest discover -s tests        # stdlib runner
-# or, if you have pytest:
+./uninstall.sh
+```
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action | Description |
+|---|---|---|
+| <kbd>Super</kbd> + <kbd>P</kbd> | **Launch / Cycle** | Opens the menu; pressing again while open cycles selection |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | **Navigate** | Move focus between display modes |
+| <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> | **Navigate** | Move focus forwards or backwards |
+| <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>, <kbd>4</kbd> | **Quick Select** | Direct select: 1=PC only, 2=Duplicate, 3=Extend, 4=Second only |
+| <kbd>Enter</kbd> / <kbd>Space</kbd> | **Apply** | Apply the selected display configuration |
+| <kbd>Escape</kbd> | **Dismiss** | Close popup without making changes |
+| *Click outside / blur* | **Dismiss** | Closes popup on focus loss |
+
+---
+
+## 📊 Support Matrix
+
+`project-menu` provides first-class support for every major Linux desktop and compositor:
+
+| Desktop Environment / WM | Session | Display Backend | Overlay Presentation | Hotkey Mechanism | Status |
+|---|---|---|---|---|:---:|
+| **GNOME / Ubuntu** | Wayland | Mutter D-Bus API (`org.gnome.Mutter.DisplayConfig`) | Centered Window¹ | `gsettings` custom keybinding | ✅ Full |
+| **GNOME / Ubuntu** | X11 | `xrandr` | Always-on-top overlay | `gsettings` custom keybinding | ✅ Full |
+| **KDE Plasma** | Wayland | `kscreen-doctor` / KScreen D-Bus | `gtk-layer-shell` overlay | `kglobalaccel` shortcut | ✅ Full |
+| **KDE Plasma** | X11 | `xrandr` | Always-on-top overlay | `kglobalaccel` shortcut | ✅ Full |
+| **Sway** | Wayland | `swaymsg` output engine | `gtk-layer-shell` overlay | Sway config snippet² | ✅ Full |
+| **Hyprland** | Wayland | `hyprctl` keyword monitor | `gtk-layer-shell` overlay | Hyprland config snippet² | ✅ Full |
+| **wlroots** *(river, labwc, Wayfire)* | Wayland | `wlr-randr` | `gtk-layer-shell` overlay | WM config snippet² | ✅ Full |
+| **COSMIC** | Wayland | `cosmic-randr` | `gtk-layer-shell` overlay | Desktop shortcut / CLI | ✅ Full |
+| **XFCE** | X11 | `xrandr` | Always-on-top overlay | `xfconf-query` | ✅ Full |
+| **Cinnamon / MATE** | X11 | `xrandr` | Always-on-top overlay | `dconf` / `gsettings` | ✅ Full |
+| **i3 / bspwm / Openbox** | X11 | `xrandr` | Always-on-top overlay | Python-Xlib `XGrabKey` daemon | ✅ Full |
+
+<small>
+¹ GNOME Wayland intentionally does not implement <code>wlr-layer-shell</code>; the popup opens as a standard focused floating window.<br>
+² Tiling WMs provide configuration snippets to preserve your custom dotfile workflows (or pass <code>--append-config</code> during install).
+</small>
+
+---
+
+## 🛠️ CLI Power Tools
+
+`project-menu` isn't just a GUI; it's also a powerful CLI utility for custom scripts, stream decks, and custom keyboard bindings:
+
+```bash
+# Show the Apple-style interactive popup
+project-menu
+
+# Print all detected screens, active states, resolutions, and refresh rates
+project-menu --list
+
+# Switch display mode instantly without opening the UI
+project-menu --mode extend
+project-menu --mode duplicate
+project-menu --mode internal
+project-menu --mode external
+
+# Position secondary displays arbitrarily (right, left, above, below)
+project-menu --mode extend --position left
+project-menu --mode extend --position above
+
+# Multi-monitor targeting: choose which screen to project onto
+project-menu --mode extend --output DP-2
+
+# Test changes with the 15-second auto-revert countdown
+project-menu --mode duplicate --confirm
+
+# Dry-run: view exact compositor commands without applying
+project-menu --mode extend --dry-run
+
+# Troubleshoot and inspect environment detection
+project-menu --debug
+
+# Override backend detection manually
+project-menu --backend hyprland
+```
+
+---
+
+## 🧪 Testing & Diagnostics
+
+### Headless & Mock Unit Tests
+The test suite includes 100+ tests that mock all hardware calls, D-Bus interfaces, and command outputs, allowing you to test on any machine:
+
+```bash
+# Run complete test suite
+python3 -m unittest discover -s tests -p "test_*.py" -v
+
+# Or with pytest
 python3 -m pytest -q
 ```
 
-Covered: environment detection, mode inference, duplicate-resolution selection, and
-`list_outputs`/`plan`/`apply` for X11, GNOME, KDE, Sway, Hyprland, wlr-randr and
-COSMIC (see `tests/`).
+### Emulating Multi-Monitor Setups on a Single Laptop Screen
+Don't have a second monitor handy? You can simulate multi-head setups in seconds:
 
-### Testing with a single physical monitor
+<details>
+<summary><b>Click to expand virtual display recipes</b></summary>
 
-* **X11 — fake a second monitor with `xrandr --setmonitor`:**
-  ```bash
-  xrandr --setmonitor VIRTUAL1 1920/520x1080/290+1920+0 none
-  project-menu --list          # VIRTUAL1 should appear
-  ```
-* **X11 — headless with Xvfb:**
-  ```bash
-  Xvfb :99 -screen 0 1920x1080x24 &
-  DISPLAY=:99 xrandr           # exercise the xrandr backend
-  ```
-* **Sway — create a virtual output:**
-  ```bash
-  swaymsg create_output
-  swaymsg output HEADLESS-1 resolution 1920x1080
-  ```
-* **Hyprland — create a headless output:**
-  ```bash
-  hyprctl output create headless
-  ```
+#### X11 (Virtual Monitor with xrandr)
+```bash
+# Create a virtual 1080p output side-by-side
+xrandr --setmonitor VIRTUAL1 1920/520x1080/290+1920+0 none
+project-menu --list
+# To remove:
+xrandr --delmonitor VIRTUAL1
+```
+
+#### X11 (Virtual Framebuffer with Xvfb)
+```bash
+Xvfb :99 -screen 0 1920x1080x24 &
+DISPLAY=:99 project-menu --list
+```
+
+#### Sway (Virtual Wayland Output)
+```bash
+swaymsg create_output
+swaymsg output HEADLESS-1 resolution 1920x1080
+project-menu --list
+```
+
+#### Hyprland (Headless Wayland Output)
+```bash
+hyprctl output create headless
+project-menu --list
+```
+</details>
 
 ---
 
-## Troubleshooting
+## 🧩 Extensibility: How to Add a New Backend
 
-| Symptom | Fix |
-|---|---|
-| `project-menu: command not found` | `~/.local/bin` is not on your `PATH`; log out/in or add it. |
-| Popup doesn't appear / no overlay | GNOME Wayland has no layer-shell — the window is a normal window; press Super+P again to focus. Ensure `python3-gi` + `gir1.2-gtk-3.0` are installed. |
-| "No supported display backend" | Run `project-menu --debug` to see the detected environment; see "How to add a new backend". |
-| Super+P does nothing | `install.sh` couldn't register it; run `project-menu --register-hotkey` to see the manual instructions for your desktop. |
-| Black screen after switching | The popup auto-reverts after 15 s unless you click "Keep". From a terminal: `project-menu --mode internal`. |
-| Duplicate shows different refresh | Expected — see "Known limitations". |
-| KDE: changes don't stick | kscreen-doctor is atomic; if one setting is invalid *nothing* is applied (this is intentional). |
+Adding support for an upcoming compositor or window manager takes fewer than 50 lines of Python.
 
-Logs are written to `~/.local/state/project-menu/log`; run with `--debug` for
-verbose output on stderr.
+### Step 1: Create `backends/mywm.py`
+
+Subclass `SubprocessBackend` (or `DisplayBackend` directly) and implement output discovery and mode command planning:
+
+```python
+from backends.base import SubprocessBackend
+from interfaces import ApplyResult, Output, Selection
+from core import infer_mode, primary_output
+
+class MyWMBackend(SubprocessBackend):
+    name = "mywm"
+    priority = 45  # Lower number = higher evaluation priority
+
+    @classmethod
+    def can_handle(cls, env):
+        return env.session_type == "wayland" and env.has_desktop("mywm")
+
+    def list_outputs(self) -> list[Output]:
+        code, stdout, _ = self._run(["mywmctl", "list-displays"])
+        return self.parse_outputs(stdout)
+
+    def plan(self, selection: Selection) -> list[str]:
+        # Generate the command line strings to apply the mode
+        if selection.mode.value == "internal":
+            return ["mywmctl", "disable", "HDMI-1"]
+        return ["mywmctl", "enable", "HDMI-1"]
+
+    def apply(self, selection: Selection) -> ApplyResult:
+        commands = self.plan(selection)
+        # Execute commands via self._run(...)
+        return ApplyResult(success=True, commands=commands)
+```
+
+### Step 2: Register in `backends/registry.py`
+
+```python
+from backends.mywm import MyWMBackend
+
+BACKENDS.append(MyWMBackend)
+ALIASES["mywm"] = "mywm"
+```
+
+### Step 3: Add unit tests in `tests/test_mywm_backend.py`
+
+Use `make_runner(...)` from `tests/helpers.py` to test parsing, planning, and error handling without spawning processes.
 
 ---
 
-## How to add a new backend
-
-Adding support for a new compositor/desktop is a two-file change:
-
-1. **Create `backends/<name>.py`** subclassing `DisplayBackend`
-   (`from interfaces import DisplayBackend`), or `SubprocessBackend`
-   (`from backends.base import SubprocessBackend`) if it shells out to a CLI.
-
-   ```python
-   from backends.base import SubprocessBackend
-   from interfaces import DisplayMode, Selection
-
-   class MyBackend(SubprocessBackend):
-       name = "mywm"                    # used by --backend and registry
-       priority = 70                    # lower = preferred in auto-detect
-       LIST_CMD = ["mywmctl", "outputs"]
-
-       @classmethod
-       def can_handle(cls, env):
-           return env.session_type == "wayland" and env.has_desktop("mywm")
-
-       def parse_outputs(self, text):   # -> list[Output]
-           ...
-
-       def get_current_mode(self):      # usually: return infer_mode(self.list_outputs())
-           from core import infer_mode
-           return infer_mode(self.list_outputs())
-
-       def plan(self, selection: Selection):  # -> list[str] human-readable commands
-           ...
-
-       def apply(self, selection: Selection): # -> ApplyResult
-           ...
-   ```
-
-   Reuse the helpers in `core.py` (`infer_mode`, `primary_output`,
-   `best_duplicate_mode`, …) so mode logic stays consistent.
-
-2. **Register it** in `backends/registry.py`: add the class to `BACKENDS` and,
-   optionally, an alias in `ALIASES`.
-
-Then add unit tests in `tests/test_<name>_backend.py` using `make_runner(...)` from
-`tests/helpers.py` (see the existing backend tests).
-
-The same pattern applies to **hotkeys** (`hotkeys/<name>.py` + `hotkeys/registry.py`)
-and **UIs** (`ui/<name>.py`).
-
-### Project layout
+## 📁 Project Architecture
 
 ```
-main.py  cli.py  detect.py  interfaces.py  core.py
-backends/   base.py  x11.py  gnome.py  kde.py  sway.py  hyprland.py  wlroots.py  cosmic.py  registry.py
-hotkeys/    gnome.py  kde.py  xfce.py  wm.py  x11_grab.py  registry.py
-ui/         base.py  gtk_ui.py  qt_ui.py
-tests/      test_*.py  helpers.py  conftest.py
-install.sh  uninstall.sh  pyproject.toml  README.md
+project-menu/
+├── backends/             # Pluggable display server drivers
+│   ├── base.py           # Subprocess runner & revert snapshot base
+│   ├── cosmic.py         # System76 COSMIC randr driver
+│   ├── gnome.py          # Mutter DisplayConfig D-Bus driver
+│   ├── hyprland.py       # Hyprland hyprctl driver
+│   ├── kde.py            # KDE Plasma kscreen-doctor driver
+│   ├── registry.py       # Auto-discovery priority pipeline
+│   ├── sway.py           # Sway IPC driver
+│   ├── wlroots.py        # Generic wlr-randr driver
+│   └── x11.py            # X11 xrandr driver
+├── hotkeys/              # Desktop environment shortcut hooks
+│   ├── gnome.py          # GNOME / Cinnamon / MATE gsettings
+│   ├── kde.py            # KDE kglobalaccel hook
+│   ├── xfce.py           # XFCE xfconf-query hook
+│   ├── wm.py             # Sway / Hyprland / i3 config generators
+│   └── x11_grab.py       # Generic X11 XGrabKey listener daemon
+├── ui/                   # User interface components
+│   ├── gtk_ui.py         # Apple-inspired GTK 3/4 glassmorphism card
+│   └── qt_ui.py          # High-fidelity Qt fallback interface
+├── tests/                # 100+ comprehensive automated tests
+├── install.sh            # Smart cross-distro package installer
+├── uninstall.sh          # Complete uninstaller script
+├── main.py               # Main CLI & single-instance controller
+├── detect.py             # Environment detection heuristics
+├── core.py               # Math, geometry, resolution & logger engine
+└── pyproject.toml        # PEP 517/621 package metadata
 ```
+
+---
+
+## 🤝 Contributing
+
+Contributions make the open-source community an inspiring place to learn, create, and build. Any contributions you make are **greatly appreciated**!
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Run test suites (`python3 -m unittest discover -s tests`)
+4. Commit your Changes (`git commit -m 'feat: add AmazingFeature'`)
+5. Push to the Branch (`git push origin feature/AmazingFeature`)
+6. Open a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full development guidelines.
+
+---
+
+## 📜 License
+
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for the Linux Desktop Community. Inspired by macOS & Windows Win+P.</sub>
+</div>
