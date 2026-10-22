@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-menu"
+version = "0.1.0"
+description = "Cross-desktop, cross-distro Win+P style display-mode switcher"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "project-menu contributors" }]
+keywords = ["display", "monitor", "wayland", "x11", "projector"]
+classifiers = [
+    "Environment :: X11 Applications",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+]
+
+[project.scripts]
+project-menu = "main:main"
+
+[tool.setuptools]
+py-modules = ["main", "cli", "interfaces", "core", "detect"]
+
+[tool.setuptools.packages.find]
+include = ["backends*", "hotkeys*", "ui*"]
