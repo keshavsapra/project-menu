@@ -121,5 +121,61 @@ class TestKdeHotkey(unittest.TestCase):
         self.assertIn("Meta+P", inst)
 
 
+class TestCinnamonHotkey(unittest.TestCase):
+    """Cinnamon stores custom shortcuts in org.cinnamon.desktop.keybindings,
+    NOT in settings-daemon media-keys like GNOME/MATE."""
+
+    def setUp(self):
+        self.hotkey = CinnamonHotkey()
+        self.commands = []
+
+        def fake_run(argv, check=False):
+            self.commands.append(argv)
+            mock_proc = MagicMock()
+            mock_proc.returncode = 0
+            mock_proc.stdout = ""
+            if argv[1] == "get" and argv[-1] == "custom-list":
+                mock_proc.stdout = "@as ['custom0']"
+            elif argv[1] == "get" and argv[-1] == "name":
+                mock_proc.stdout = "'Project Menu'" if "custom0" in argv[2] else "''"
+            return mock_proc
+
+        self.hotkey._run = fake_run
+
+    @patch("shutil.which", return_value="/usr/bin/gsettings")
+    def test_register_uses_cinnamon_list_schema(self, _which):
+        actions = self.hotkey.register("project-menu")
+        flat = str(self.commands)
+        # Must not touch the GNOME-style media-keys schema at all.
+        self.assertNotIn("org.cinnamon.settings-daemon.plugins.media-keys", flat)
+        self.assertNotIn("org.gnome", flat)
+        # Must use custom-list and the relocatable custom-keybinding schema.
+        self.assertIn("org.cinnamon.desktop.keybindings", flat)
+        self.assertIn("custom-keybinding", flat)
+        # name/command are plain strings, binding is an array of strings.
+        self.assertTrue(any("name" in c and "Project Menu" in c and "['Project Menu']" not in c for c in self.commands))
+        self.assertTrue(any("command" in c and "project-menu" in c and "['project-menu']" not in c
+                            for c in self.commands))
+        self.assertTrue(any("binding" in c and "['<Super>p']" in c for c in self.commands))
+        self.assertTrue(actions)
+
+    @patch("shutil.which", return_value="/usr/bin/gsettings")
+    def test_register_takes_free_slot(self, _which):
+        self.hotkey.register("project-menu")
+        # custom0 is in use -> new slot must be custom1.
+        flat = str(self.commands)
+        self.assertIn("/custom1/", flat)
+        self.assertNotIn("/custom0/", flat)
+
+    @patch("shutil.which", return_value="/usr/bin/gsettings")
+    def test_unregister_removes_our_slot(self, _which):
+        actions = self.hotkey.unregister()
+        # Our slot (custom0, named 'Project Menu') must be reset and dropped from the list.
+        self.assertTrue(any(c[1] == "reset" and "/custom0/" in c[2] for c in self.commands))
+        list_writes = [c for c in self.commands if c[1] == "set" and c[-2] == "custom-list"]
+        self.assertEqual(list_writes, [["gsettings", "set", "org.cinnamon.desktop.keybindings", "custom-list", "[]"]])
+        self.assertTrue(any("restored" in a for a in actions))
+
+
 if __name__ == "__main__":
     unittest.main()

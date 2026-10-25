@@ -32,8 +32,14 @@ _HEADER = re.compile(
 )
 
 
-def _parse_rate(token: str) -> float:
-    return float(token.strip("+*"))
+def _parse_rate(token: str) -> float | None:
+    cleaned = token.strip("+*")
+    if not cleaned:
+        # xrandr can emit the preferred/current markers as separate tokens
+        # (e.g. "60.00 +  50.00" for a connected-but-disabled output); a bare
+        # "+" or "*" is not a refresh rate of its own — skip it.
+        return None
+    return float(cleaned)
 
 
 def _has_xlib_randr() -> bool:
@@ -134,9 +140,10 @@ class X11Backend(SubprocessBackend):
                 m = _MODE_LINE.match(line)
                 if m and current is not None:
                     w, h = int(m.group("w")), int(m.group("h"))
-                    rates = m.group("rates").split()
-                    for tok in rates:
+                    for tok in m.group("rates").split():
                         refresh = _parse_rate(tok)
+                        if refresh is None:  # bare preferred/current marker
+                            continue
                         is_current = "*" in tok
                         mode = ModeInfo(w, h, refresh, mode_id=f"{w}x{h}")
                         current.modes.append(mode)

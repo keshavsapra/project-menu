@@ -1,8 +1,12 @@
-"""GTK popup UI (GTK3 or GTK4).
+"""GTK popup UI (GTK3 or GTK4), deliberately minimal.
+
+A flat, borderless list of four text rows — no icons, no header, no footer.
+The active mode is marked with a small dot; the row under the cursor is
+highlighted.
 
 Single instance is provided by :class:`Gtk.Application` (a subclass of
-Gio.Application): a second ``project-menu`` launch signals the running instance,
-which then cycles to the next option.
+Gio.Application): a second ``project-menu`` launch signals the running
+instance, which then cycles to the next option.
 
 Overlay behaviour:
 
@@ -25,8 +29,9 @@ except ValueError:
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from core import APP_ID, notify  # noqa: E402
-from interfaces import DisplayMode, ExtendPosition, MODE_LABELS, PopupUI, Selection, UIContext  # noqa: E402
-from ui.base import ICON_NAMES, has_layer_shell  # noqa: E402
+from interfaces import ExtendPosition, MODE_LABELS, PopupUI, Selection, UIContext  # noqa: E402
+from interfaces import DisplayMode  # noqa: E402
+from ui.base import has_layer_shell  # noqa: E402
 
 POSITION_LABELS = {
     ExtendPosition.RIGHT: "Right",
@@ -35,186 +40,54 @@ POSITION_LABELS = {
     ExtendPosition.BELOW: "Below",
 }
 
-
-MODE_CONFIG = {
-    DisplayMode.INTERNAL: {
-        "title": "PC Screen Only",
-        "subtitle": "Use built-in display only",
-        "icon": "computer",
-        "gradient_class": "icon-internal",
-    },
-    DisplayMode.DUPLICATE: {
-        "title": "Duplicate",
-        "subtitle": "Mirror content on both displays",
-        "icon": "video-display",
-        "gradient_class": "icon-duplicate",
-    },
-    DisplayMode.EXTEND: {
-        "title": "Extend",
-        "subtitle": "Expand desktop to the side",
-        "icon": "video-x-generic",
-        "gradient_class": "icon-extend",
-    },
-    DisplayMode.EXTERNAL: {
-        "title": "Second Screen Only",
-        "subtitle": "Use external display only",
-        "icon": "video-display",
-        "gradient_class": "icon-external",
-    },
-}
-
-
-def _icon(name: str, size: int = 24):
-    if GTK_MAJOR == 3:
-        img = Gtk.Image.new_from_icon_name(name, Gtk.IconSize.DND)
-        img.set_pixel_size(size)
-        return img
-    img = Gtk.Image.new_from_icon_name(name)
-    img.set_pixel_size(size)
-    return img
+_WINDOW_W = 280
+_WINDOW_H = 220
 
 
 def _apply_css():
-    css_data = b"""
-    window.project-window {
-        background-color: transparent;
-    }
-    .apple-card {
-        background-color: alpha(@theme_bg_color, 0.94);
+    css = b"""
+    window.project-window { background-color: transparent; }
+    .card {
+        background-color: alpha(@theme_bg_color, 0.9);
         color: @theme_fg_color;
-        border: 1px solid alpha(@theme_fg_color, 0.16);
-        border-radius: 18px;
-        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
-    .apple-header {
-        padding-bottom: 8px;
-        border-bottom: 1px solid alpha(@theme_fg_color, 0.08);
-        margin-bottom: 4px;
-    }
-    .apple-title {
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: -0.2px;
-    }
-    .apple-subtitle {
-        font-size: 11px;
-        opacity: 0.6;
-    }
-    .apple-footer {
-        font-size: 10px;
-        opacity: 0.45;
-        margin-top: 6px;
-    }
-    .mode-row {
-        background-color: alpha(@theme_fg_color, 0.04);
-        border: 1px solid alpha(@theme_fg_color, 0.07);
-        border-radius: 12px;
-        padding: 6px 10px;
-        margin: 2px 0;
-        transition: all 140ms ease-in-out;
-    }
-    .mode-row:hover {
-        background-color: alpha(@theme_fg_color, 0.09);
-        border-color: alpha(@theme_fg_color, 0.14);
-    }
-    .mode-row:focus, .mode-row.suggested-action {
-        background-color: alpha(#007aff, 0.18);
-        border: 1.5px solid #007aff;
-        box-shadow: 0 0 0 2px alpha(#007aff, 0.3);
-    }
-    .mode-row.active-mode {
-        border-color: alpha(#007aff, 0.55);
-    }
-    .mode-title {
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: -0.15px;
-    }
-    .mode-subtitle {
-        font-size: 11px;
-        opacity: 0.58;
-    }
-    .icon-squircle {
-        min-width: 40px;
-        min-height: 40px;
-        border-radius: 10px;
-        color: #ffffff;
-    }
-    .icon-internal {
-        background-image: linear-gradient(135deg, #788494, #4e5866);
-    }
-    .icon-duplicate {
-        background-image: linear-gradient(135deg, #0a84ff, #0062cc);
-    }
-    .icon-extend {
-        background-image: linear-gradient(135deg, #5e5ce6, #3634a3);
-    }
-    .icon-external {
-        background-image: linear-gradient(135deg, #30b0c7, #007a99);
-    }
-    .keycap {
-        font-family: ui-monospace, "SF Mono", "Ubuntu Mono", monospace;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 3px 7px;
-        border-radius: 6px;
-        background-color: alpha(@theme_fg_color, 0.08);
-        border: 1px solid alpha(@theme_fg_color, 0.18);
-        color: alpha(@theme_fg_color, 0.75);
-    }
-    .active-pill {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 10px;
-        background-color: alpha(#007aff, 0.18);
-        color: #007aff;
-        border: 1px solid alpha(#007aff, 0.4);
-    }
-    .confirm-card {
-        background-color: alpha(@theme_bg_color, 0.95);
-        color: @theme_fg_color;
-        border-radius: 18px;
-        border: 1px solid alpha(@theme_fg_color, 0.16);
-    }
-    .btn-keep {
-        background-image: linear-gradient(180deg, #0a84ff, #007aff);
-        color: #ffffff;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 8px 22px;
-        border: none;
-    }
-    .btn-revert {
-        background-color: alpha(@theme_fg_color, 0.08);
-        color: @theme_fg_color;
-        border-radius: 8px;
-        padding: 8px 18px;
         border: 1px solid alpha(@theme_fg_color, 0.14);
-    }
-    .btn-choice {
-        background-color: alpha(@theme_fg_color, 0.05);
-        border: 1px solid alpha(@theme_fg_color, 0.1);
         border-radius: 10px;
-        padding: 10px 16px;
+        padding: 4px;
+    }
+    .row {
+        background-color: alpha(@theme_fg_color, 0.03);
+        background-image: none;
+        color: @theme_fg_color;
+        border: none;
+        border-radius: 7px;
+        padding: 9px 12px;
         font-weight: 500;
     }
-    .btn-choice:hover, .btn-choice:focus {
-        background-color: alpha(#007aff, 0.18);
-        border-color: #007aff;
+    .row:hover, .row:focus, .row.selected {
+        background-color: alpha(@theme_fg_color, 0.11);
+        background-image: none;
     }
+    .row:disabled { color: alpha(@theme_fg_color, 0.35); }
+    .row.suggested-action {
+        background-color: alpha(@theme_fg_color, 0.11);
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        outline: none;
+    }
+    .quiet { font-size: 10px; opacity: 0.5; }
     """
     try:
         provider = Gtk.CssProvider()
         if GTK_MAJOR == 3:
-            provider.load_from_data(css_data)
+            provider.load_from_data(css)
             Gtk.StyleContext.add_provider_for_screen(
                 Gdk.Screen.get_default(),
                 provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
         else:
-            provider.load_from_data(css_data.decode("utf-8"))
+            provider.load_from_data(css.decode("utf-8"))
             Gtk.StyleContext.add_provider_for_display(
                 Gdk.Display.get_default(),
                 provider,
@@ -281,7 +154,6 @@ class _ProjectApp(Gtk.Application):
         self.window = self._build_window()
         self.add_window(self.window)  # keeps the Gio.Application alive while shown
         self._build_buttons()
-        # Set initial focus to active mode if available
         if self.ctx.active_mode is not None:
             for i, (_btn, mode, en) in enumerate(self.buttons):
                 if mode == self.ctx.active_mode and en:
@@ -294,7 +166,7 @@ class _ProjectApp(Gtk.Application):
     def _build_window(self) -> Gtk.Window:
         env = self.ctx.env
         win = Gtk.Window(title="Project Menu")
-        win.set_default_size(360, -1)
+        win.set_default_size(_WINDOW_W, -1)
         win.set_decorated(False)
         win.set_resizable(False)
         win.get_style_context().add_class("project-window")
@@ -330,7 +202,7 @@ class _ProjectApp(Gtk.Application):
                 self._center_on_active_monitor(win)
             self._connect_keys(win)
         else:
-            # GNOME Wayland / unknown: normal focused window, no positioning/always-on-top.
+            # GNOME Wayland / unknown: normal focused window, no positioning.
             self._connect_keys(win)
 
         if GTK_MAJOR == 3:
@@ -365,121 +237,37 @@ class _ProjectApp(Gtk.Application):
         if monitor is None:
             return
         geo = monitor.get_geometry()
-        w = 360
-        h = 320
+        scale = monitor.get_scale_factor() or 1
         win.move(
-            int(geo.x + (geo.width - w) / 2),
-            int(geo.y + (geo.height - h) / 2),
+            int(geo.x + (geo.width / scale - _WINDOW_W) / 2),
+            int(geo.y + (geo.height / scale - _WINDOW_H) / 2),
         )
 
     def _build_buttons(self):
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        card.get_style_context().add_class("apple-card")
-        card.set_margin_top(8)
-        card.set_margin_bottom(8)
-        card.set_margin_start(8)
-        card.set_margin_end(8)
-
-        # Apple Header
-        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        header.get_style_context().add_class("apple-header")
-        header.set_margin_start(6)
-        header.set_margin_end(6)
-        header.set_margin_top(4)
-
-        hdr_icon = _icon("video-display", 16)
-        header.pack_start(hdr_icon, False, False, 0)
-
-        hdr_title = Gtk.Label(label="Displays")
-        hdr_title.get_style_context().add_class("apple-title")
-        hdr_title.set_xalign(0.0)
-        header.pack_start(hdr_title, False, False, 0)
-
-        connected_count = len([o for o in self.outputs if o.connected])
-        sub_text = self.ctx.note or (f"{connected_count} Displays" if connected_count > 1 else "1 Display")
-        hdr_sub = Gtk.Label(label=sub_text)
-        hdr_sub.get_style_context().add_class("apple-subtitle")
-        header.pack_end(hdr_sub, False, False, 0)
-
-        card.pack_start(header, False, False, 4)
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        card.get_style_context().add_class("card")
 
         self.buttons = []
-        for i, (mode, enabled) in enumerate(self.ctx.options):
-            btn = self._make_button(mode, enabled, i + 1)
+        for mode, enabled in self.ctx.options:
+            label = MODE_LABELS.get(mode, str(mode))
+            if self.ctx.active_mode == mode:
+                label = "● " + label
+            btn = Gtk.Button(label=label)
+            btn.set_sensitive(enabled)
+            btn.get_style_context().add_class("row")
+            btn.set_halign(Gtk.Align.FILL)
+            if GTK_MAJOR == 3:
+                child = btn.get_child()
+                if isinstance(child, Gtk.Label):
+                    child.set_xalign(0.0)
             btn.connect("clicked", self._on_click, mode)
-            card.pack_start(btn, True, True, 2)
+            card.pack_start(btn, True, True, 0)
             self.buttons.append((btn, mode, enabled))
-
-        footer = Gtk.Label(label="↑ / ↓ to navigate  •  Enter to apply  •  Esc to close")
-        footer.get_style_context().add_class("apple-footer")
-        card.pack_start(footer, False, False, 4)
 
         self.window.add(card)
 
-    def _make_button(self, mode: DisplayMode, enabled: bool, shortcut_num: int) -> Gtk.Button:
-        cfg = MODE_CONFIG.get(mode, {
-            "title": MODE_LABELS.get(mode, str(mode)),
-            "subtitle": "",
-            "icon": "video-display",
-            "gradient_class": "icon-duplicate",
-        })
-
-        hb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        hb.set_margin_top(4)
-        hb.set_margin_bottom(4)
-        hb.set_margin_start(4)
-        hb.set_margin_end(4)
-
-        # Icon squircle tile
-        squircle = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        squircle.get_style_context().add_class("icon-squircle")
-        squircle.get_style_context().add_class(cfg["gradient_class"])
-        squircle.set_valign(Gtk.Align.CENTER)
-        icon_img = _icon(cfg["icon"], 20)
-        squircle.pack_start(icon_img, True, True, 0)
-        hb.pack_start(squircle, False, False, 0)
-
-        # Text stack: Title & Subtitle
-        vb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        vb.set_valign(Gtk.Align.CENTER)
-        title_lbl = Gtk.Label(label=cfg["title"])
-        title_lbl.set_xalign(0.0)
-        title_lbl.get_style_context().add_class("mode-title")
-        vb.pack_start(title_lbl, False, False, 0)
-
-        sub_lbl = Gtk.Label(label=cfg["subtitle"])
-        sub_lbl.set_xalign(0.0)
-        sub_lbl.get_style_context().add_class("mode-subtitle")
-        vb.pack_start(sub_lbl, False, False, 0)
-
-        hb.pack_start(vb, True, True, 0)
-
-        # Right accessories
-        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        right_box.set_valign(Gtk.Align.CENTER)
-
-        if self.ctx.active_mode == mode:
-            active_pill = Gtk.Label(label="✓ Active")
-            active_pill.get_style_context().add_class("active-pill")
-            right_box.pack_start(active_pill, False, False, 0)
-
-        keycap = Gtk.Label(label=str(shortcut_num))
-        keycap.get_style_context().add_class("keycap")
-        right_box.pack_start(keycap, False, False, 0)
-
-        hb.pack_end(right_box, False, False, 0)
-
-        btn = Gtk.Button()
-        btn.add(hb)
-        btn.set_sensitive(enabled)
-        btn.get_style_context().add_class("mode-row")
-        if self.ctx.active_mode == mode:
-            btn.get_style_context().add_class("active-mode")
-        return btn
-
     # -- keyboard ----------------------------------------------------------
     def _on_key_press(self, _widget, event):
-        from gi.repository import Gdk
         key = event.keyval
         if key in (Gdk.KEY_Up, Gdk.KEY_Down, Gdk.KEY_Tab):
             delta = -1 if key == Gdk.KEY_Up else 1
@@ -500,7 +288,6 @@ class _ProjectApp(Gtk.Application):
         return False
 
     def _on_key_pressed(self, _controller, keyval, _keycode, state):
-        from gi.repository import Gdk
         if keyval in (Gdk.KEY_Up, Gdk.KEY_Down, Gdk.KEY_Tab):
             delta = -1 if keyval == Gdk.KEY_Up else 1
             if keyval == Gdk.KEY_Tab and (state & Gdk.ModifierType.SHIFT_MASK):
@@ -604,7 +391,7 @@ class _ProjectApp(Gtk.Application):
         candidates = [o.name for o in self.outputs if o.connected and o.name != prim_name]
         if not candidates:
             candidates = [o.name for o in self.outputs if o.connected]
-        self._simple_choice("Choose the second display", [(n, n) for n in candidates], callback)
+        self._simple_choice("Second display", [(nm, nm) for nm in candidates], callback)
 
     def _choose_position(self, callback):
         self._simple_choice(
@@ -620,27 +407,26 @@ class _ProjectApp(Gtk.Application):
             dialog.set_transient_for(self.window)
         _block_close(dialog)
         content = dialog.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(16)
-        content.set_margin_end(16)
-        content.get_style_context().add_class("confirm-card")
-
-        hdr = Gtk.Label(label=title)
-        hdr.get_style_context().add_class("apple-title")
-        content.pack_start(hdr, False, False, 4)
+        content.set_spacing(2)
+        content.get_style_context().add_class("card")
+        lbl = Gtk.Label(label=title)
+        lbl.get_style_context().add_class("quiet")
+        content.pack_start(lbl, False, False, 4)
 
         for value, label in options:
             btn = Gtk.Button(label=str(label))
-            btn.get_style_context().add_class("btn-choice")
+            btn.get_style_context().add_class("row")
+            if GTK_MAJOR == 3:
+                child = btn.get_child()
+                if isinstance(child, Gtk.Label):
+                    child.set_xalign(0.0)
             btn.connect("clicked", lambda _w, v=value: (dialog.destroy(), callback(v)))
-            content.pack_start(btn, True, True, 2)
+            content.pack_start(btn, True, True, 0)
 
         cancel = Gtk.Button(label="Cancel")
-        cancel.get_style_context().add_class("btn-revert")
+        cancel.get_style_context().add_class("row")
         cancel.connect("clicked", lambda _w: (dialog.destroy(), callback(None)))
-        content.pack_start(cancel, True, True, 6)
+        content.pack_start(cancel, True, True, 2)
         _show(dialog)
 
     # -- apply + confirm ---------------------------------------------------
@@ -665,56 +451,36 @@ class _ProjectApp(Gtk.Application):
         self._confirm(result.warnings, confirmed)
 
     def _confirm(self, warnings, callback):
-        msg = "Keep this display configuration?"
         dialog = Gtk.Dialog(title="Keep Changes?")
         dialog.set_modal(True)
         if self.window:
             dialog.set_transient_for(self.window)
         _block_close(dialog)
         content = dialog.get_content_area()
-        content.set_spacing(10)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(18)
-        content.set_margin_end(18)
-        content.get_style_context().add_class("confirm-card")
+        content.set_spacing(2)
+        content.get_style_context().add_class("card")
 
-        # Top alert icon
-        icon_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        icon_box.set_halign(Gtk.Align.CENTER)
-        squircle = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        squircle.get_style_context().add_class("icon-squircle")
-        squircle.get_style_context().add_class("icon-duplicate")
-        alert_icon = _icon("video-display", 24)
-        squircle.pack_start(alert_icon, True, True, 0)
-        icon_box.pack_start(squircle, False, False, 0)
-        content.pack_start(icon_box, False, False, 2)
-
-        # Alert title
-        title_lbl = Gtk.Label(label=msg)
-        title_lbl.get_style_context().add_class("apple-title")
-        content.pack_start(title_lbl, False, False, 2)
-
-        if warnings:
-            warn_lbl = Gtk.Label(label="⚠ " + "\n⚠ ".join(warnings))
-            warn_lbl.set_line_wrap(True)
-            content.pack_start(warn_lbl, False, False, 2)
+        lbl = Gtk.Label(label="Keep this display configuration?")
+        content.pack_start(lbl, False, False, 6)
+        for w in warnings:
+            warn = Gtk.Label(label=w)
+            warn.get_style_context().add_class("quiet")
+            warn.set_line_wrap(True)
+            content.pack_start(warn, False, False, 2)
 
         state = {"seconds": 15, "done": False}
         counter = Gtk.Label()
-        counter.get_style_context().add_class("apple-subtitle")
+        counter.get_style_context().add_class("quiet")
         content.pack_start(counter, False, False, 4)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        box.set_halign(Gtk.Align.CENTER)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         revert_btn = Gtk.Button(label="Revert")
-        revert_btn.get_style_context().add_class("btn-revert")
-        keep_btn = Gtk.Button(label="Keep Changes")
-        keep_btn.get_style_context().add_class("btn-keep")
-
+        keep_btn = Gtk.Button(label="Keep")
+        revert_btn.get_style_context().add_class("row")
+        keep_btn.get_style_context().add_class("row")
         box.pack_start(revert_btn, True, True, 0)
         box.pack_start(keep_btn, True, True, 0)
-        content.pack_start(box, True, True, 6)
+        content.pack_start(box, True, True, 2)
 
         def finish(keep):
             if state["done"]:
@@ -733,10 +499,10 @@ class _ProjectApp(Gtk.Application):
             if state["seconds"] <= 0:
                 finish(False)
                 return False
-            counter.set_text(f"Reverting automatically in {state['seconds']}s…")
+            counter.set_text(f"Reverting in {state['seconds']}s")
             return True
 
-        counter.set_text(f"Reverting automatically in {state['seconds']}s…")
+        counter.set_text(f"Reverting in {state['seconds']}s")
         GLib.timeout_add_seconds(1, tick)
         _show(dialog)
 

@@ -94,47 +94,35 @@ Every backend implements:
 
 ---
 
-## 4. Popup UI (Apple macOS Design Language)
+## 4. Popup UI (Minimal Flat Design)
 
-The UI was crafted to match the aesthetic, typography, and interaction standards of modern macOS (Sonoma / Sequoia Control Center & Display Mirroring):
+The UI is deliberately minimal — a flat, borderless card that gets out of the way:
 
 1. **GTK UI (`ui/gtk_ui.py`)**:
-   * **Vibrant Glass Aesthetic**:
-     * Translucent background (`alpha(@theme_bg_color, 0.94)`) with smooth 18px rounded corners (`.apple-card`).
-     * Specular border rim (`1px solid alpha(@theme_fg_color, 0.16)`) and multi-layer soft drop shadow.
-     * True RGBA visual support in GTK 3/4 preventing black-corner artifacts.
-   * **Visual Hierarchy & Header**:
-     * Sleek macOS-style header pill with a display icon, bold "Displays" title, and connected monitor count subtitle.
-     * Subtle bottom border divider separating the header from the option items.
-   * **Option Rows & Icon Squircles**:
-     * Each mode features an Apple-style rounded squircle tile (`min-width: 40px`, `border-radius: 10px`) with custom gradient fills:
-       * **PC Screen Only**: Cool Aluminum / Slate gradient (`#788494` $\rightarrow$ `#4e5866`)
-       * **Duplicate**: Apple Blue gradient (`#0a84ff` $\rightarrow$ `#0062cc`)
-       * **Extend**: Apple Purple/Indigo gradient (`#5e5ce6` $\rightarrow$ `#3634a3`)
-       * **Second Screen Only**: Apple Teal gradient (`#30b0c7` $\rightarrow$ `#007a99`)
-     * **Typography Stack**:
-       * Primary label in semibold 13px (e.g. "PC Screen Only", "Duplicate", "Extend", "Second Screen Only").
-       * Subdued explanatory subtitle in 11px (e.g. "Use built-in display only", "Mirror content on both displays", "Expand desktop to the side", "Use external display only").
-     * **Keycaps & Badges**:
-       * Apple keycap badges for shortcuts (`[ 1 ]`, `[ 2 ]`, `[ 3 ]`, `[ 4 ]`) with monospace font and subtle border.
-       * Tinted blue pill badge (`✓ Active`) indicating current active display mode.
-   * **Apple Alert Confirmation Sheet**:
-     * 15-second countdown alert styled as a native macOS sheet with glowing squircle icon, bold alert header, countdown subtext, secondary Revert button, and prominent Apple Blue Keep button.
+   * **Flat Card**: Four plain text rows in a compact card (`alpha(@theme_bg_color, 0.9)`) with a hairline border (`alpha(@theme_fg_color, 0.14)`) and 10px rounded corners. True RGBA visual support in GTK 3/4 prevents black-corner artifacts.
+   * **Theme-Aware**: All colors derive from `@theme_bg_color`/`@theme_fg_color`, so the card tracks the user's native dark/light theme with no hardcoded palette.
+   * **Active-Mode Dot**: The current mode is marked with a small `●` prefix; the focused row gets a faint highlight via the `suggested-action` class with theme gradients suppressed (`background-image: none`).
+   * **No Chrome**: No header, icons, subtitles, keycap badges, or hint footer — keyboard shortcuts still work (arrows/Tab/1–4/Enter/Esc).
+   * **Confirmation Sheet**: A 15-second countdown dialog with plain `Keep` / `Revert` buttons and a "Reverting in Ns" label. On revert the backend replays the pre-change snapshot.
    * **Layer Shell & Desktop Integration**:
      * **X11**: Always-on-top, centered on the active monitor.
      * **Wayland with layer-shell**: Centered true overlay with `EXCLUSIVE` keyboard grab.
      * **GNOME Wayland**: Focused borderless window.
-     * **Single Instance**: Signals running instance to cycle options when Super+P is pressed again.
+     * **Single Instance**: A second `Super+P` signals the running `Gio.Application` to cycle options.
+   * **Silent Launch**: The CLI backgrounds a plain popup launch (double-fork + detach), so no terminal is spawned or left open; `--foreground`/`--debug` opt out. The popup window is registered via `Gtk.Application.add_window()` so the Gio main loop stays alive while shown.
+   * **X11 parsing note**: xrandr emits the preferred-mode `+` marker as a standalone token for connected-but-disabled outputs (e.g. `60.00 +  50.00`); bare markers are skipped, not parsed as rates.
 
 2. **Qt Fallback UI (`ui/qt_ui.py`)**:
-   * Features the identical macOS Control Center styling using Qt Style Sheets (QSS), transparent background, squircle gradients, and Apple alert sheets.
+   * Same flat card styling through Qt Style Sheets (QSS); used only when GTK is unavailable. Single-instance via `QLocalServer`/`QLocalSocket`.
 
 ---
 
 ## 5. Global Hotkey Registration (`hotkeys/`)
 
+
 Handled per desktop environment:
-* **GNOME / Cinnamon / MATE**: Configures custom keybinding via `gsettings`/`dconf` and disables the built-in `switch-monitor` Super+P shortcut. Reversible on uninstall.
+* **GNOME / MATE**: Configures a custom keybinding via `gsettings` (`org.gnome.settings-daemon.plugins.media-keys` / MATE media-keys) and disables the built-in `switch-monitor` Super+P shortcut. Reversible on uninstall.
+* **Cinnamon**: Uses Cinnamon's *own* custom-shortcut mechanism — `org.cinnamon.desktop.keybindings custom-list` plus a relocatable schema at `/org/cinnamon/desktop/keybindings/custom-keybindings/customN/` (name/command are plain strings, binding is an array of strings). Writing the GNOME media-keys path silently does nothing on Cinnamon. Also clears `org.cinnamon.desktop.keybindings.wm switch-monitor`.
 * **KDE Plasma**: Installs a `.desktop` file with `X-KDE-GlobalAccel=true`, sets the shortcut with `kwriteconfig5`/`kwriteconfig6`, and reloads `kglobalaccel`.
 * **XFCE**: Registers shortcut via `xfconf-query` on channel `xfce4-keyboard-shortcuts`.
 * **Sway / Hyprland / i3**: Config files are never modified without explicit user opt-in. Prints the exact snippet, and appends to config only when `--append-config` is provided.

@@ -81,7 +81,6 @@ class GsettingsHotkey(HotkeyRegistrar):
             return ["gsettings not found; nothing to unregister"]
         actions: list[str] = []
         paths = self._get_paths()
-        kept = [p for p in paths if self.LABEL not in p and not self._is_ours(p)]
         # Identify our slot by checking the command value.
         ours = [p for p in paths if self._slot_is_ours(p)]
         for slot in ours:
@@ -126,13 +125,105 @@ class GnomeHotkey(GsettingsHotkey):
 
 
 class CinnamonHotkey(GsettingsHotkey):
+    """Cinnamon does NOT use media-keys custom-keybindings (that's GNOME/MATE).
+
+    Cinnamon keeps user shortcuts in ``org.cinnamon.desktop.keybindings
+    custom-list`` with one relocatable schema per slot:
+    ``org.cinnamon.desktop.keybindings.custom-keybinding`` at
+    ``/org/cinnamon/desktop/keybindings/custom-keybindings/customN/`` whose
+    name/command/binding keys are arrays of strings.
+    """
+
     name = "cinnamon"
-    MEDIA_SCHEMA = "org.cinnamon.settings-daemon.plugins.media-keys"
+    MEDIA_SCHEMA = ""  # not used; overridden hooks below bypass it
     SWITCH_SCHEMA = "org.cinnamon.desktop.keybindings.wm"
+    LIST_SCHEMA = "org.cinnamon.desktop.keybindings"
+    LIST_KEY = "custom-list"
+    SLOT_SCHEMA = "org.cinnamon.desktop.keybindings.custom-keybinding"
+    SLOT_PREFIX = "/org/cinnamon/desktop/keybindings/custom-keybindings/"
 
     @classmethod
     def can_handle(cls, env) -> bool:
         return env.has_desktop("cinnamon")
+
+    def _list(self) -> list[str]:
+        p = self._run(["gsettings", "get", self.LIST_SCHEMA, self.LIST_KEY])
+        return _PATH_RE.findall(p.stdout)
+
+    def _set_list(self, names: list[str]) -> None:
+        val = "[" + ", ".join(f"'{n}'" for n in names) + "]" if names else "[]"
+        self._run(["gsettings", "set", self.LIST_SCHEMA, self.LIST_KEY, val], check=True)
+
+    def _slot_path(self, name: str) -> str:
+        return f"{self.SLOT_PREFIX}{name}/"
+
+    def register(self, command: str) -> list[str]:
+        if not shutil.which("gsettings"):
+            return [f"gsettings not found. Manual: {self.instructions(command)}"]
+        actions: list[str] = []
+        existing = self._list()
+        used = {n for n in existing if re.fullmatch(r"custom\d+", n)}
+        index = 0
+        while f"custom{index}" in used:
+            index += 1
+        name = f"custom{index}"
+        slot = self._slot_path(name)
+
+        self._set_list(existing + [name])
+        actions.append(f"gsettings set {self.LIST_SCHEMA} {self.LIST_KEY} (added {slot})")
+
+        schema = f"{self.SLOT_SCHEMA}:{slot}"
+        # Cinnamon's schema types: name/command are plain STRINGS, binding is an
+        # ARRAY of strings. Writing bracket syntax into name/command makes Cinnamon
+        # try to execute a file literally named "['project-menu']".
+        self._run(["gsettings", "set", schema, "name", self.LABEL], check=True)
+        self._run(["gsettings", "set", schema, "command", command], check=True)
+        self._run(["gsettings", "set", schema, "binding", f"['{self.BINDING}']"], check=True)
+        actions.append(f"gsettings set {schema} name '{self.LABEL}'")
+        actions.append(f"gsettings set {schema} command '{command}'")
+        actions.append(f"gsettings set {schema} binding ['{self.BINDING}']")
+
+        # Cinnamon's built-in monitor-switch combo would conflict with Super+P.
+        if self.SWITCH_SCHEMA:
+            self._run(["gsettings", "set", self.SWITCH_SCHEMA, self.SWITCH_KEY, "[]"], check=True)
+            actions.append(f"gsettings set {self.SWITCH_SCHEMA} {self.SWITCH_KEY} '[]' (disabled built-in Super+P)")
+        return actions
+
+    def unregister(self) -> list[str]:
+        if not shutil.which("gsettings"):
+            return ["gsettings not found; nothing to unregister"]
+        actions: list[str] = []
+        existing = self._list()
+        ours: list[str] = []
+        for name in existing:
+            slot = self._slot_path(name)
+            schema = f"{self.SLOT_SCHEMA}:{slot}"
+            p = self._run(["gsettings", "get", schema, "name"])
+            if self.LABEL in p.stdout:
+                ours.append(name)
+                for key in ("name", "command", "binding"):
+                    self._run(["gsettings", "reset", schema, key])
+                actions.append(f"gsettings reset {schema} *")
+        if ours:
+            self._set_list([n for n in existing if n not in ours])
+        if self.SWITCH_SCHEMA:
+            self._run(["gsettings", "reset", self.SWITCH_SCHEMA, self.SWITCH_KEY])
+            actions.append(f"gsettings reset {self.SWITCH_SCHEMA} {self.SWITCH_KEY} (restored built-in Super+P)")
+        return actions
+
+    def instructions(self, command: str) -> str:
+        return (
+            "Cinnamon: System Settings > Hardware > Keyboard > Shortcuts > Custom > Add custom.\n"
+            f"  Name: {self.LABEL}\n"
+            f"  Command: {command}\n"
+            "  Shortcut: press Super+P\n"
+            "or via terminal:\n"
+            f"  gsettings set {self.LIST_SCHEMA} {self.LIST_KEY} \"['custom0']\"\n"
+            f"  gsettings set {self.SLOT_SCHEMA}:{self.SLOT_PREFIX}custom0/ name '{self.LABEL}'\n"
+            f"  gsettings set {self.SLOT_SCHEMA}:{self.SLOT_PREFIX}custom0/ command '{command}'\n"
+            f"  gsettings set {self.SLOT_SCHEMA}:{self.SLOT_PREFIX}custom0/ binding \"['{self.BINDING}']\"\n"
+            f"  gsettings set {self.SWITCH_SCHEMA} {self.SWITCH_KEY} \"[]\"\n"
+        )
 
 
 class MateHotkey(GsettingsHotkey):

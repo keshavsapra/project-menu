@@ -57,70 +57,35 @@ class QtPopupUI(PopupUI):
 
 QT_APPLE_QSS = """
 QWidget#AppleCard {
-    background-color: rgba(30, 30, 34, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 18px;
-}
-QLabel#AppleTitle {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: -0.2px;
+    background-color: rgba(30, 30, 34, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
 }
 QLabel#AppleSubtitle {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 11px;
-}
-QLabel#AppleFooter {
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.5);
     font-size: 10px;
 }
 QPushButton.mode-btn {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 8px 12px;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-radius: 7px;
+    padding: 9px 12px;
     text-align: left;
     color: #ffffff;
     font-size: 13px;
     font-weight: 500;
 }
 QPushButton.mode-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.16);
+    background-color: rgba(255, 255, 255, 0.12);
 }
 QPushButton.mode-btn:focus {
-    background-color: rgba(0, 122, 255, 0.22);
-    border: 1.5px solid #007aff;
+    background-color: rgba(255, 255, 255, 0.12);
 }
 QPushButton.mode-btn:disabled {
     color: rgba(255, 255, 255, 0.25);
     background-color: rgba(255, 255, 255, 0.02);
-    border-color: rgba(255, 255, 255, 0.03);
-}
-QPushButton#KeepBtn {
-    background-color: #007aff;
-    color: #ffffff;
-    font-weight: bold;
-    border-radius: 8px;
-    padding: 8px 20px;
-    border: none;
-}
-QPushButton#RevertBtn {
-    background-color: rgba(255, 255, 255, 0.08);
-    color: #ffffff;
-    border-radius: 8px;
-    padding: 8px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 """
-
-MODE_SUBTITLES = {
-    DisplayMode.INTERNAL: "Use built-in display only",
-    DisplayMode.DUPLICATE: "Mirror content on both displays",
-    DisplayMode.EXTEND: "Expand desktop to the side",
-    DisplayMode.EXTERNAL: "Use external display only",
-}
 
 
 class _QtPopup(QtWidgets.QWidget):
@@ -148,48 +113,26 @@ class _QtPopup(QtWidgets.QWidget):
 
     def _build(self):
         root_layout = QtWidgets.QVBoxLayout(self)
-        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setContentsMargins(8, 8, 8, 8)
 
         card = QtWidgets.QFrame()
         card.setObjectName("AppleCard")
         card_layout = QtWidgets.QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(6)
-
-        # Header
-        header = QtWidgets.QHBoxLayout()
-        title = QtWidgets.QLabel("Displays")
-        title.setObjectName("AppleTitle")
-        header.addWidget(title)
-        header.addStretch()
-
-        connected_count = len([o for o in self.outputs if o.connected])
-        sub_text = self.ctx.note or (f"{connected_count} Displays" if connected_count > 1 else "1 Display")
-        subtitle = QtWidgets.QLabel(sub_text)
-        subtitle.setObjectName("AppleSubtitle")
-        header.addWidget(subtitle)
-        card_layout.addLayout(header)
+        card_layout.setContentsMargins(4, 4, 4, 4)
+        card_layout.setSpacing(2)
 
         # Mode buttons
         self.buttons = []
         for i, (mode, enabled) in enumerate(self.ctx.options):
             mode_name = MODE_LABELS[mode]
-            desc = MODE_SUBTITLES.get(mode, "")
             is_active = (self.ctx.active_mode == mode)
-            active_mark = "  ✓ Active" if is_active else ""
-            btn_text = f"[{i + 1}]  {mode_name}{active_mark}\n      {desc}"
-            btn = QtWidgets.QPushButton(btn_text)
+            active_mark = "● " if is_active else ""
+            btn = QtWidgets.QPushButton(f"{active_mark}{mode_name}")
             btn.setProperty("class", "mode-btn")
             btn.setEnabled(enabled)
             btn.clicked.connect(lambda _checked, m=mode: self._select_mode(m))
             card_layout.addWidget(btn)
             self.buttons.append(btn)
-
-        # Footer
-        footer = QtWidgets.QLabel("↑ / ↓ to move  •  Enter to apply  •  Esc to close")
-        footer.setObjectName("AppleFooter")
-        footer.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(footer)
 
         root_layout.addWidget(card)
         self.setLayout(root_layout)
@@ -281,8 +224,10 @@ class _QtPopup(QtWidgets.QWidget):
         return self._simple_choice("Choose the second display", candidates)
 
     def _choose_position(self):
-        value = self._simple_choice("Extend position", [p.value for p in ExtendPosition])
-        return ExtendPosition(value) if value else None
+        value = self._simple_choice("Extend position", [POSITION_LABELS[p] for p in ExtendPosition])
+        if not value:
+            return None
+        return next(p for p in ExtendPosition if POSITION_LABELS[p] == value)
 
     def _simple_choice(self, title, options):
         dialog = QtWidgets.QDialog(self)
@@ -323,19 +268,21 @@ class _QtPopup(QtWidgets.QWidget):
 
     def _confirm(self, warnings) -> bool:
         msg = "Keep this display configuration?"
-        if warnings:
-            msg += "\n\n⚠ " + "\n⚠ ".join(warnings)
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle("Keep Changes?")
         dialog.setStyleSheet(QT_APPLE_QSS)
         layout = QtWidgets.QVBoxLayout(dialog)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
 
         lbl = QtWidgets.QLabel(msg)
-        lbl.setObjectName("AppleTitle")
         lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl)
+        for w in warnings:
+            warn = QtWidgets.QLabel(w)
+            warn.setObjectName("AppleSubtitle")
+            warn.setWordWrap(True)
+            layout.addWidget(warn)
 
         state = {"seconds": 15, "keep": False}
         counter = QtWidgets.QLabel()
@@ -344,11 +291,11 @@ class _QtPopup(QtWidgets.QWidget):
         layout.addWidget(counter)
 
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(12)
+        row.setSpacing(6)
         revert_btn = QtWidgets.QPushButton("Revert")
-        revert_btn.setObjectName("RevertBtn")
-        keep_btn = QtWidgets.QPushButton("Keep Changes")
-        keep_btn.setObjectName("KeepBtn")
+        keep_btn = QtWidgets.QPushButton("Keep")
+        for b in (revert_btn, keep_btn):
+            b.setProperty("class", "mode-btn")
         row.addWidget(revert_btn)
         row.addWidget(keep_btn)
         layout.addLayout(row)
@@ -365,12 +312,12 @@ class _QtPopup(QtWidgets.QWidget):
             if state["seconds"] <= 0:
                 finish(False)
             else:
-                counter.setText(f"Reverting automatically in {state['seconds']}s…")
+                counter.setText(f"Reverting in {state['seconds']}s")
 
         timer = QtCore.QTimer(dialog)
         timer.timeout.connect(tick)
         timer.start(1000)
-        counter.setText(f"Reverting automatically in {state['seconds']}s…")
+        counter.setText(f"Reverting in {state['seconds']}s")
         dialog.exec_()
         timer.stop()
         return state["keep"]

@@ -9,7 +9,7 @@ Thank you for your interest in contributing to **project-menu**!
 Clone the repository and run the test suite:
 
 ```bash
-git clone https://github.com/<your-username>/project-menu.git
+git clone https://github.com/keshavsapra/project-menu.git
 cd project-menu
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```

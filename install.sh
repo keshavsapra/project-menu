@@ -158,6 +158,8 @@ fi
 echo ">> Installing program to $DEST_DIR"
 mkdir -p "$DEST_DIR"
 cp -r "$SRC_DIR"/{main.py,cli.py,interfaces.py,core.py,detect.py,backends,hotkeys,ui} "$DEST_DIR/"
+# Drop stale bytecode so the installed copy can't shadow source changes.
+find "$DEST_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/project-menu" <<EOF

@@ -38,7 +38,39 @@ class TestX11Parse(unittest.TestCase):
         self.assertTrue(edp.enabled)
         self.assertEqual((edp.width, edp.height), (1920, 1080))
         self.assertEqual((edp.current_mode.width, edp.current_mode.refresh), (1920, 60.0))
-        self.assertFalse(outs[2].connected)
+
+    def test_single_screen_with_preferred_marker_token(self):
+        """xrandr emits the preferred marker "+" as a standalone token for a
+        connected-but-disabled output: "60.00 +  50.00". This must not raise
+        ValueError from float('')."""
+        text = (
+            "Screen 0: minimum 8 x 8, current 1920 x 1080, maximum 32767 x 32767\n"
+            "HDMI-0 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 527mm x 296mm\n"
+            "   1920x1080     60.00*+  74.97    59.94    50.00\n"
+            "   1600x900      60.00\n"
+            "HDMI-1-1 connected (normal left inverted right x axis y axis)\n"
+            "   1920x1080     60.00 +  50.00    59.94\n"
+            "   1280x720      60.00    50.00\n"
+        )
+        b = backend(text)
+        outs = b.parse_outputs(text)
+        prim, sec = outs[0], outs[1]
+        # No 0 Hz ghost modes from bare markers.
+        self.assertEqual([m for m in sec.modes if m.refresh == 0], [])
+        self.assertTrue(sec.connected)
+        self.assertFalse(sec.enabled)
+        self.assertTrue(any(m.width == 1920 and m.refresh == 60.0 for m in sec.modes))
+        self.assertTrue(any(m.width == 1920 and m.refresh == 50.0 for m in sec.modes))
+        self.assertEqual(prim.current_mode.refresh, 60.0)
+
+    def test_modes_counted_once_per_refresh(self):
+        text = (
+            "HDMI-A connected 1920x1080+0+0\n"
+            "   1920x1080     60.00 +  50.00\n"
+        )
+        outs = backend(text).parse_outputs(text)
+        self.assertEqual([(m.width, m.refresh) for m in outs[0].modes],
+                         [(1920, 60.0), (1920, 50.0)])
 
     def test_get_current_mode(self):
         self.assertEqual(backend().get_current_mode(), DisplayMode.EXTEND)

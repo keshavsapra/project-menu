@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 import core
@@ -39,7 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=15, metavar="SEC",
                    help="confirmation timeout in seconds (default: 15)")
     p.add_argument("--dry-run", "-n", action="store_true", help="print commands without running them")
-    p.add_argument("--debug", "-d", action="store_true", help="enable debug logging (and print environment/backend)")
+    p.add_argument("--debug", "-d", action="store_true", help="enable debug logging (and print environment/backend); also implies foreground")
+    p.add_argument("--foreground", "-F", action="store_true",
+                   help="run the popup in the foreground (a plain launch backgrounds itself so no console window stays open)")
     p.add_argument("--backend", "-b", metavar="NAME", help="override the auto-detected backend")
     p.add_argument("--register-hotkey", action="store_true", help="register the Super+P hotkey")
     p.add_argument("--unregister-hotkey", action="store_true", help="remove the Super+P hotkey")
@@ -194,9 +197,35 @@ def _run_hotkey(env, args) -> int:
     return 0
 
 
+def _detach() -> None:
+    """Re-launch in a background session so no console window stays attached.
+
+    Double-fork + detach from the controlling terminal, then point the std
+    streams at /dev/null. The parent returns to the shell immediately while
+    the popup keeps running as an orphan owned by init.
+    """
+    try:
+        if os.fork() > 0:
+            os._exit(0)  # parent: hand control back to the shell right away
+        os.setsid()
+        if os.fork() > 0:
+            os._exit(0)  # intermediate: not a session leader anymore
+    except OSError:
+        return  # forking failed; just keep running in the foreground
+    devnull = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(devnull, fd)
+    if devnull > 2:
+        os.close(devnull)
+
+
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    popup_launch = not (args.list or args.mode or args.dry_run or args.register_hotkey
+                        or args.unregister_hotkey or args.hotkey_daemon)
+    if popup_launch and not args.foreground and not args.debug:
+        _detach()
     try:
         return run(args)
     except KeyboardInterrupt:

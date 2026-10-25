@@ -2,16 +2,7 @@
 
 from __future__ import annotations
 
-from interfaces import DisplayMode
-
-ICON_NAMES = {
-    DisplayMode.INTERNAL: "computer",
-    DisplayMode.DUPLICATE: "video-display",
-    DisplayMode.EXTEND: "video-x-generic",
-    DisplayMode.EXTERNAL: "video-display",
-}
-
-__all__ = ["get_ui", "gtk_version", "ICON_NAMES"]
+__all__ = ["get_ui", "gtk_version"]
 
 
 def gtk_version() -> int | None:
