@@ -33,3 +33,9 @@ jobs:
       - name: Run unit tests
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Build Debian package (smoke test)
+        run: |
+          chmod +x packaging/deb/build.sh
+          packaging/deb/build.sh
+          dpkg-deb -I dist/project-menu_*_all.deb

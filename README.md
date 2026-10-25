@@ -97,7 +97,17 @@ The installer detects your package manager, installs **only** the libraries your
 > [!TIP]
 > On tiling compositors (Sway, Hyprland, i3), `install.sh` never touches your dotfiles without permission — it prints the exact config snippet, or writes it for you with `--append-config`.
 
-### 2. pipx
+### 2. Debian / Ubuntu / Mint users: grab the `.deb`
+
+Prefer a system-wide package? Download `project-menu_<version>_all.deb` from the [Releases page](https://github.com/keshavsapra/project-menu/releases/latest) (it is attached to every release) and install it — no build steps, no dependency hunting, and `project-menu` lands on your `PATH` for all users:
+
+```bash
+apt install ./project-menu_0.1.0_all.deb     # resolves Recommends automatically
+```
+
+> Note: the `.deb` installs system-wide (`/usr`) and intentionally does *not* auto-register per-user hotkeys (it can't know which desktop you run). Run `project-menu --register-hotkey` once, or use `./install.sh` (user-space) instead. Pick one method — they're equivalent at runtime.
+
+### 3. pipx
 
 ```bash
 pipx install .
@@ -107,7 +117,7 @@ project-menu --list
 > [!NOTE]
 > pipx installs the Python entry point only. Run `./install.sh` (or your package manager) for system packages like `python3-gi` and `gir1.2-gtk-3.0`, and for desktop hotkey registration.
 
-### 3. Uninstalling
+### 4. Uninstalling
 
 ```bash
 ./uninstall.sh
