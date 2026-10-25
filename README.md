@@ -6,13 +6,12 @@
 
 Four display modes, one keystroke, every desktop. Federated backend auto-detection means it just works — on GNOME, KDE, Cinnamon, Sway, Hyprland, COSMIC, XFCE, and everyone else.
 
-[badges-start]
+[![CI](https://github.com/keshavsapra/project-menu/actions/workflows/ci.yml/badge.svg)](https://github.com/keshavsapra/project-menu/actions)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20｜%20Wayland%20｜%20X11-2ea44f.svg)]()
 [![Tests](https://img.shields.io/badge/tests-107%20passing-3fb950.svg)](tests/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[badges-end]
 
 <p align="center">
   <a href="#-visual-tour">Visual Tour</a> •
